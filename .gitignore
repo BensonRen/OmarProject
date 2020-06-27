@@ -1,0 +1,13 @@
+dataIn
+models
+figs
+evaluate_model.py
+__pycache__/
+*/*.csv
+*/*.png
+*/*.jpg
+*/*.sh
+.idea/*
+run02.sh
+*/*.err
+/Pytorch learning/
