@@ -2,7 +2,6 @@
 This .py file is to run train.py for hyper-parameter swipping in a linear fashion.
 """
 import train
-#os.environ["CUDA_VISIBLE_DEVICE"] = "-1"               #Uncomment this line if you want to use CPU only
 import  numpy as np
 import os
 import time

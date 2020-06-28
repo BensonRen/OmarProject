@@ -16,9 +16,9 @@ OPTIM = "Adam"
 REG_SCALE = 1e-3
 BATCH_SIZE = 256
 EVAL_STEP = 10
-RECORD_STEP = 20
+RECORD_STEP = 10
 TRAIN_STEP = 300
-LEARN_RATE = 0.001
+LEARN_RATE = 1e-3
 # DECAY_STEP = 25000 # This is for step decay, however we are using dynamic decaying
 LR_DECAY_RATE = 0.99
 STOP_THRESHOLD = 1e-5
@@ -28,6 +28,7 @@ USE_WARM_RESTART = False
 LR_WARM_RESTART = 600
 ERR_EXP = 2
 DELTA = 0
+OPTIMIZE_W0_RATIO = 5
 
 # Data Specific parameters
 X_RANGE = [i for i in range(0, 8 )]
@@ -45,6 +46,7 @@ TEST_RATIO = 0.2
 
 # Running specific
 USE_CPU_ONLY = False
-MODEL_NAME  = "my_div_50_no_grad_clip_mean"
-EVAL_MODEL = "20200518_175758"
+MODEL_NAME = 'Train_Optimize_0_times_no_clip_all_boundary_loss_leaky_relu_mydiv2_gbound005'
+EVAL_MODEL = None
+PRE_TRAIN_MODEL = 'Pretrain'
 NUM_PLOT_COMPARE = 5

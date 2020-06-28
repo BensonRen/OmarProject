@@ -11,9 +11,9 @@ from torch import nn
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 from tensorboard import program
-from torchsummary import summary
+#from torchsummary import summary
 from torch.optim import lr_scheduler
-from torchviz import make_dot
+#from torchviz import make_dot
 from network_model import Lorentz_layer
 from plotting_functions import plot_weights_3D, plotMSELossDistrib, \
     compare_spectra, compare_Lor_params
@@ -53,6 +53,7 @@ class Network(object):
         self.best_validation_loss = float('inf')    # Set the BVL to large number
         self.best_pretrain_loss = float('inf')
         self.running_loss = []
+        self.pre_train_model = self.flags.pre_train_model
 
     def create_model(self):
         """
@@ -79,7 +80,7 @@ class Network(object):
         MSE_loss = nn.functional.mse_loss(logit, labels)          # The MSE Loss of the network
         return MSE_loss
 
-    def make_custom_loss(self, logit=None, labels=None, w0=None):
+    def make_custom_loss(self, logit=None, labels=None, w0=None, g=None, wp=None, epoch=None):
 
         if logit is None:
             return None
@@ -94,6 +95,13 @@ class Network(object):
             freq_mean = (self.flags.freq_low + self.flags.freq_high)/ 2
             freq_range = (self.flags.freq_high - self.flags.freq_low)/ 2
             custom_loss += torch.sum(torch.relu(torch.abs(w0 - freq_mean) - freq_range))
+        if g is not None:
+            if epoch < 100:
+                custom_loss += 100*torch.sum(torch.relu(-g + 0.05))
+            else:
+                custom_loss += 100 * torch.sum(torch.relu(-g + 0.05))
+        if wp is not None:
+            custom_loss += 100*torch.sum(torch.relu(-wp))
         # custom_loss = nn.functional.smooth_l1_loss(logit, labels)
         # additional_loss_term = self.lorentz_product_loss_term(logit, labels)
         # additional_loss_term = self.peak_finder_loss(logit, labels)
@@ -101,119 +109,27 @@ class Network(object):
 
         return custom_loss
 
-    def lorentz_product_loss_term(self, logit=None, labels=None):
-
-        if logit is None:
-            return None
-
-        batch_size = labels.size()[0]
-        loss_penalty = 100
-        ascend = torch.tensor([0, 1, -1], requires_grad=False, dtype=torch.float32)
-        descend = torch.tensor([-1, 1, 0], requires_grad=False, dtype=torch.float32)
-
-        if torch.cuda.is_available():
-            ascend = ascend.cuda()
-            descend = descend.cuda()
-
-        max = F.relu(F.conv1d(labels.view(batch_size, 1, -1),
-                              ascend.view(1, 1, -1), bias=None, stride=1, padding=1))
-        min = F.relu(F.conv1d(labels.view(batch_size, 1, -1),
-                              descend.view(1, 1, -1), bias=None, stride=1, padding=1))
-        zeros = torch.mul(max, min).squeeze()
-        zeros = torch.logical_xor(zeros, torch.zeros_like(zeros))
-        zeros = zeros.unsqueeze(1).expand_as(self.model.w_expand)
-        # print(zeros.size())
-
-        w = torch.mul(self.model.w_expand, zeros)
-        w0 = torch.mul(self.model.w0, zeros)
-        g = torch.mul(self.model.g, zeros)
-        # print(w)
-        # print(w0)
-
-        # loss = torch.mean(torch.sum(torch.mul(torch.abs(torch.pow(w0, 2) - torch.pow(w, 2)), torch.mul(w, g)), 1))
-        loss = torch.mean(torch.sum(torch.mul(torch.abs(w-w0), g), 1))
-        # print(loss)
-        loss = loss_penalty*loss
-        return loss
-
-    def peak_finder_loss(self, logit=None, labels=None):
-
-        if logit is None:
-            return None
-        batch_size = labels.size()[0]
-        loss_penalty = 10000
-
-        ascend = torch.tensor([0, 1, -1], requires_grad=False, dtype=torch.float32)
-        descend = torch.tensor([-1, 1, 0], requires_grad=False, dtype=torch.float32)
-
-        if torch.cuda.is_available():
-            ascend = ascend.cuda()
-            descend = descend.cuda()
-
-        max = F.relu(F.conv1d(labels.view(batch_size, 1, -1),
-                               ascend.view(1, 1, -1), bias=None, stride=1, padding=1))
-        min = F.relu(F.conv1d(labels.view(batch_size, 1, -1),
-                                descend.view(1, 1, -1), bias=None, stride=1, padding=1))
-        zeros = torch.mul(max, min).squeeze()
-        zeros = torch.logical_xor(zeros, torch.zeros_like(zeros))
-        loss = torch.mean(torch.mean(torch.mul(torch.abs(logit-labels), zeros), 1))
-        # loss = 0
-        # print(loss)
-        loss = loss
-        # print(loss)
-        return loss
-
-    def make_e2_KK_loss(self, logit=None):
-        # Enforces Kramers-Kronig causality on e2 derivative
-
-        if logit is None:
-            return None
-
-        num_spec_points = logit.shape[1]
-        dw = (self.flags.freq_high - self.flags.freq_low) / num_spec_points
-        w_numpy = np.arange(self.flags.freq_low, self.flags.freq_high, dw)
-        cuda = True if torch.cuda.is_available() else False
-        if cuda:
-            w = torch.tensor(w_numpy, requires_grad=False).cuda()
-        else:
-            w = torch.tensor(w_numpy, requires_grad=False)
-        w = w.expand_as(logit)
-        we_w = torch.mul(logit, w)
-        # print(logit.shape, w.shape, we_w.shape)
-        # we_w_diff = torch.zeros(we_w.shape, requires_grad=False)
-        we_w_diff = (we_w[:, 1:] - we_w[:, :-1])
-        dwe_dw = torch.div(we_w_diff, dw)
-        diff = torch.abs(torch.min(dwe_dw[:, :]))
-        diff_scaled = diff/logit.shape[0]
-        # f = compare_spectra(Ypred=we_w[0, 1:].cpu().data.numpy(),
-        #                          Ytruth=dwe_dw[0, :].cpu().data.numpy(), label_y1='w*e(w)', label_y2='d(w*e)/dw')
-        # self.log.add_figure(tag='Sample ' + str(0) + ') derivative e2 Spectrum'.format(1),
-        #                     figure=f)
-
-        # zero = torch.zeros(max.shape, requires_grad=False, dtype=torch.float32)
-        # print(loss.shape)
-        # print(diff)
-        return diff_scaled
-
-    def make_optimizer(self):
+    def make_optimizer(self, param=None):
         """
         Make the corresponding optimizer from the flags. Only below optimizers are allowed.
         :return:
         """
+        if param is None:
+            param = self.model.parameters()
         if self.flags.optim == 'Adam':
-            op = torch.optim.Adam(self.model.parameters(), lr=self.flags.lr, weight_decay=self.flags.reg_scale)
+            op = torch.optim.Adam(param, lr=self.flags.lr, weight_decay=self.flags.reg_scale)
         elif self.flags.optim == 'AdamW':
-            op = torch.optim.AdamW(self.model.parameters(), lr=self.flags.lr, weight_decay=self.flags.reg_scale)
+            op = torch.optim.AdamW(param, lr=self.flags.lr, weight_decay=self.flags.reg_scale)
         elif self.flags.optim == 'Adamax':
-            op = torch.optim.Adamax(self.model.parameters(), lr=self.flags.lr, weight_decay=self.flags.reg_scale)
+            op = torch.optim.Adamax(param, lr=self.flags.lr, weight_decay=self.flags.reg_scale)
         elif self.flags.optim == 'SparseAdam':
-            op = torch.optim.SparseAdam(self.model.parameters(), lr=self.flags.lr)
+            op = torch.optim.SparseAdam(param, lr=self.flags.lr)
         elif self.flags.optim == 'RMSprop':
-            op = torch.optim.RMSprop(self.model.parameters(), lr=self.flags.lr, weight_decay=self.flags.reg_scale)
+            op = torch.optim.RMSprop(param, lr=self.flags.lr, weight_decay=self.flags.reg_scale)
         elif self.flags.optim == 'SGD':
-            op = torch.optim.SGD(self.model.parameters(), lr=self.flags.lr, weight_decay=self.flags.reg_scale, momentum=0.9, nesterov=True)
+            op = torch.optim.SGD(param, lr=self.flags.lr, weight_decay=self.flags.reg_scale, momentum=0.9, nesterov=True)
         elif self.flags.optim == 'LBFGS':
-            op = torch.optim.LBFGS(self.model.parameters(), lr=1, max_iter=20, history_size=100)
+            op = torch.optim.LBFGS(param, lr=1, max_iter=20, history_size=100)
         else:
             raise Exception("Optimizer is not available at the moment.")
         return op
@@ -225,7 +141,7 @@ class Network(object):
         :return:
         """
         # return lr_scheduler.StepLR(optimizer=self.optm, step_size=50, gamma=0.75, last_epoch=-1)
-        return lr_scheduler.ReduceLROnPlateau(optimizer=self.optm, mode='min',
+        return lr_scheduler.ReduceLROnPlateau(optimizer=self.optm_all, mode='min',
                                         factor=self.flags.lr_decay_rate,
                                           patience=10, verbose=True, threshold=1e-4)
 
@@ -250,7 +166,8 @@ class Network(object):
         Loading the model from the check point folder with name best_model.pt
         :return:
         """
-        self.model = torch.load(os.path.join(self.ckpt_dir, 'best_pretrained_model.pt'))
+        pt_file = os.path.join('models', self.pre_train_model, 'best_pretrained_model.pt')
+        self.model = torch.load(pt_file)
 
     def record_weight(self, name='Weights', layer=None, batch=999, epoch=999):
         """
@@ -320,7 +237,10 @@ class Network(object):
             self.model.cuda()
 
         # Construct optimizer after the model moved to GPU
-        self.optm = self.make_optimizer()
+        self.optm_all = self.make_optimizer()
+        # Separate optimizer for w0 since it is very important
+        self.optm_w0 = self.make_optimizer(param=[params for params in self.model.linears.parameters()]\
+                                           .append(self.model.lin_w0.parameters()))
         self.lr_scheduler = self.make_lr_scheduler()
 
         for epoch in range(self.flags.train_step):
@@ -334,15 +254,16 @@ class Network(object):
                     geometry = geometry.cuda()                          # Put data onto GPU
                     spectra = spectra.cuda()                            # Put data onto GPU
 
-                self.optm.zero_grad()                                   # Zero the gradient first
+                self.optm_all.zero_grad()                                   # Zero the gradient first
+                self.optm_w0.zero_grad()
                 #print("mean of spectra target", np.mean(spectra.data.numpy()))
                 logit,w0,wp,g = self.model(geometry)            # Get the output
 
                 if j == 0 and epoch % self.flags.eval_step == 0:
                     #print("shpe of wp", np.shape(wp.cpu().detach().numpy()))
-                    #print("wp = ", wp.cpu().detach().numpy()[0,:,0])
-                    print("w0 = ", w0.cpu().detach().numpy()[0,:,0])
-                    print("g = ", g.cpu().detach().numpy()[0,:,0])
+                    print("wp = ", wp.cpu().detach().numpy()[0,:])
+                    print("w0 = ", w0.cpu().detach().numpy()[0,:])
+                    print("g = ", g.cpu().detach().numpy()[0,:])
                     #print("Mean of logit is:", np.mean(logit.cpu().detach().numpy()))
                     #print("Mean of spectra is:", np.mean(spectra.cpu().detach().numpy()[:, 12:]))
                     #print("logit is:",logit.cpu().detach().numpy()[0, :])
@@ -351,7 +272,7 @@ class Network(object):
                 # print("spectra type:", spectra.dtype)
 
                 #loss = self.make_MSE_loss(logit, spectra)              # Get the loss tensor
-                loss = self.make_custom_loss(logit, spectra[:, 12:], w0=w0)
+                loss = self.make_custom_loss(logit, spectra[:, 12:], w0=w0, g=g, wp=wp, epoch=epoch)
                 # print(loss)
                 loss.backward()
                 if self.flags.use_clip:
@@ -369,7 +290,12 @@ class Network(object):
                                                 figure=f, global_step=epoch)
 
 
-                self.optm.step()                                        # Move one step the optimizer
+                self.optm_all.step()                                        # Move one step the optimizer
+                for ii in range(self.flags.optimize_w0_ratio):
+                    logit, w0, wp, g = self.model(geometry)  # Get the output
+                    loss = self.make_custom_loss(logit, spectra[:, 12:], w0=w0, g=g, wp=wp)
+                    loss.backward()
+                    self.optm_w0.step()
                 # self.record_weight(name='after_optm_step', batch=j, epoch=epoch)
 
                 train_loss.append(np.copy(loss.cpu().data.numpy()))     # Aggregate the loss
@@ -393,14 +319,12 @@ class Network(object):
                 test_loss = []
                 with torch.no_grad():
                     for j, (geometry, spectra) in enumerate(self.test_loader):  # Loop through the eval set
-                        if j != 0:
-                            break
                         if cuda:
                             geometry = geometry.cuda()
                             spectra = spectra.cuda()
                         logit,w0,wp,g = self.model(geometry)
                         #loss = self.make_MSE_loss(logit, spectra)                   # compute the loss
-                        loss = self.make_custom_loss(logit, spectra[:, 12:], w0=w0)
+                        loss = self.make_custom_loss(logit, spectra[:, 12:], w0=w0, g=g, wp=wp)
                         test_loss.append(np.copy(loss.cpu().data.numpy()))           # Aggregate the loss
 
                         if j == 0 and epoch % self.flags.record_step == 0:
@@ -460,7 +384,7 @@ class Network(object):
         url = tb.launch()
 
         print("Starting pre-training process")
-        pre_train_epoch = 500
+        pre_train_epoch = 300
         for epoch in range(pre_train_epoch):
             # print("This is pretrainin Epoch {}".format(epoch))
             # Set to Training Mode
@@ -520,11 +444,11 @@ class Network(object):
                     self.log.add_figure(tag='Test ' + str(j) + ') e2 Model Prediction'.format(1),
                                         figure=f, global_step=epoch)
 
-                print("This is Epoch %d, pretrain loss %.5f, eval mode loss is %.5f, and sim loss is %.5f" % (
-                epoch, train_avg_loss, train_avg_eval_mode_loss, sim_loss))
+                print("This is Epoch %d, pretrain loss %.5f,, and sim loss is %.5f" % (
+                epoch, train_avg_loss,  sim_loss))
 
                 # Model improving, save the model
-                if train_avg_eval_mode_loss < self.best_pretrain_loss:
+                if train_avg_loss < self.best_pretrain_loss:
                     self.best_pretrain_loss = train_avg_loss
                     self.save()
                     print("Saving the model...")

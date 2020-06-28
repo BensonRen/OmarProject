@@ -69,10 +69,12 @@ def read_flag():
     parser.add_argument('--normalize-input', default=NORMALIZE_INPUT, type=bool,
                         help='whether we should normalize the input or not')
     parser.add_argument('--test-ratio', default=TEST_RATIO, type=float, help='the ratio of test case')
-
+    parser.add_argument('--optimize-w0-ratio', default=OPTIMIZE_W0_RATIO, type=int, help='the ratio to optimize w0 more')
     # Running specific
     parser.add_argument('--eval-model', default=EVAL_MODEL, type=str,
                         help='the folder name of the model that you want to evaluate')
+    parser.add_argument('--pre-train-model', default=PRE_TRAIN_MODEL, type=str,
+                        help='the folder name of the model that you want to load the pre-trained model from')
     parser.add_argument('--use-cpu-only', type=bool, default=USE_CPU_ONLY,
                         help='The boolean flag that indicate use CPU only')
     parser.add_argument('--num-plot-compare', type=int, default=NUM_PLOT_COMPARE,
