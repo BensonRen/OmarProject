@@ -154,9 +154,9 @@ class Forward(nn.Module):
             num = mul(pow(wp, 2), mul(w_expand, g))
             denom = add(pow(add(pow(w0, 2), -pow(w_expand, 2)), 2), mul(pow(w_expand, 2), pow(g, 2)))
 
-            #e2 = div(num, denom)
+            e2 = div(num, denom)
             #e2 = Mydiv.apply(num, denom)
-            e2 = Mydiv2.apply(num, denom)
+            #e2 = Mydiv2.apply(num, denom)
             self.e2 = e2.data.cpu().numpy()                 # This is for plotting the imaginary part
             # self.e1 = e1.data.cpu().numpy()                 # This is for plotting the imaginary part
             """
@@ -208,7 +208,7 @@ class Forward(nn.Module):
 #                 out = bn(fc(out))
 #
 #         return out.float()
-
+"""
 def Lorentz_layer(w0, wp, g):
 
     # This block of code redefines 'self' variables from model
@@ -250,3 +250,4 @@ def Lorentz_layer(w0, wp, g):
     e2 = torch.sum(e2, 1)
     out = e2.float()
     return out
+"""

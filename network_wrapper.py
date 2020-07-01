@@ -14,7 +14,7 @@ from tensorboard import program
 #from torchsummary import summary
 from torch.optim import lr_scheduler
 #from torchviz import make_dot
-from network_model import Lorentz_layer
+#from network_model import Lorentz_layer
 from plotting_functions import plot_weights_3D, plotMSELossDistrib, \
     compare_spectra, compare_Lor_params
 
@@ -80,8 +80,117 @@ class Network(object):
         MSE_loss = nn.functional.mse_loss(logit, labels)          # The MSE Loss of the network
         return MSE_loss
 
-    def make_custom_loss(self, logit=None, labels=None, w0=None, g=None, wp=None, epoch=None):
+    def mirror_padding(self, input, pad_width=1):
+        """
+        pads the input tensor by mirroring
+        :param input: The tensor to be padded
+        :param pad_width: The padding width (default to be 1)
+        :return: the padded tensor
+        """
+        # Get the shape and create new tensor
+        shape = np.array(np.shape(input.detach().cpu().numpy()))
+        shape[-1] += 2*pad_width
+        padded_tensor = torch.zeros(size=tuple(shape))
+        #print("shape in mirror: ", np.shape(padded_tensor))
+        padded_tensor[:, pad_width:-pad_width] = input
+        padded_tensor[:, 0:pad_width] = input[:, pad_width:2*pad_width]
+        padded_tensor[:, -pad_width:] = input[:, -2*pad_width:-pad_width]
+        if torch.cuda.is_available():
+            padded_tensor = padded_tensor.cuda()
+        return padded_tensor
 
+    # Peak finder loss
+    def peak_finder_loss(self, logit=None, labels=None, w0=None, w_base=None):
+        batch_size = labels.size()[0]
+        #batch_size = 1
+        loss_penalty = 100
+        # Define the convolution window for peak finding
+        descend = torch.tensor([0, 1, -1], requires_grad=False, dtype=torch.float32)
+        ascend = torch.tensor([-1, 1, 0], requires_grad=False, dtype=torch.float32)
+        # Use GPU option
+        if torch.cuda.is_available():
+            ascend = ascend.cuda()
+            descend = descend.cuda()
+        # make reflection padding
+        padded_labels = self.mirror_padding(labels)
+        # Get the maximum and minimum values
+        max_values = F.conv1d(padded_labels.view(batch_size, 1, -1),
+                             ascend.view(1, 1, -1), bias=None, stride=1)
+        min_values = F.conv1d(padded_labels.view(batch_size, 1, -1),
+                                     descend.view(1, 1, -1), bias=None, stride=1)
+        #print("shape of minvalues", np.shape(min_values))
+        # Special arrangement for peaks at the edge
+        #print("Length of min=0", np.sum(min_values.detach().cpu().numpy() == 0))
+        #print("Length of max=0", np.sum(max_values.detach().cpu().numpy() == 0))
+        #min_values[min_values == 0] = 1
+        min_values = F.relu(min_values)
+        #max_values[max_values == 0] = 1
+        max_values = F.relu(max_values)
+
+        # Get the peaks
+        zeros = torch.mul(max_values, min_values).squeeze() > 0
+        """
+        # Debugging code for the peaks
+        float_zeros = zeros.float().cpu().numpy()
+        sums = np.sum(float_zeros, axis=1)
+        print("The ones that are not having 4 peaks")
+        print("shape of sums ", np.shape(sums))
+        print("number of spectra less than 4 peaks", np.sum(sums!=4))
+        print(sums)
+        print(np.arange(batch_size)[sums != 4])
+        print("sums of peaks", np.sum(sums))
+        print("shape of zeros ", np.shape(zeros))
+        w_base_expand = w_base.expand_as(zeros)
+        print("shape of the w_base_expand", np.shape(w_base_expand))
+        ###############################
+        # Plotting to see the spectra #
+        ###############################
+        plot_num = 77
+        f = plt.figure()
+        plot_w = self.model.w.cpu().numpy()
+        plot_spectra = labels.detach().cpu().numpy()[plot_num, :]
+        #print("shape of wplot", np.shape(plot_w))
+        #print("shape of spectra", np.shape(plot_spectra))
+        plt.plot(plot_w, plot_spectra )
+        plt.savefig('{}.jpg'.format(plot_num))
+        """
+        ###############################
+        ###############################
+        peaks = torch.zeros(size=[batch_size, 4], requires_grad=False, dtype=torch.float32)
+        for i in range(batch_size):
+            peak_current = w_base[zeros[i, :]]
+            #print("len of peak_current: ", len(peak_current))
+            peak_num = len(peak_current)
+            if peak_num == 4:
+                peaks[i, :] = peak_current
+            else:
+                peak_rank, index = torch.sort(labels[i, zeros[i, :]])  # Get the rank of the peaks
+                peaks[i, :peak_num] = peak_current                  # put the peaks into first len spots
+                peaks[i, peak_num:] = peak_current[index[0]]        # make the full array using the highest peak
+        #peaks = torch.tensor(w_base_expand[zeros], requires_grad=False, dtype=torch.float32)
+        if torch.cuda.is_available():
+            peaks = peaks.cuda()
+        # sort the w0 to match the peak orders
+        w0_sort, indices = torch.sort(w0)
+        #print("shape of w0_sort ", np.shape(w0_sort))
+        #print("shape of peaks ", np.shape(peaks))
+        #print(w0_sort)
+        #print(peaks)
+        return loss_penalty * F.mse_loss(w0_sort, peaks)
+
+    def make_custom_loss(self, logit=None, labels=None, w0=None,
+                         g=None, wp=None, epoch=None, peak_loss=False):
+        """
+        The custom master loss function
+        :param logit: The model output
+        :param labels: The true label
+        :param w0: The Lorentzian parameter output w0
+        :param g: The Lorentzian parameter output g
+        :param wp: The Lorentzian parameter output wp
+        :param epoch: The current epoch number
+        :param peak_loss: Whether use peak_finding_loss or not
+        :return:
+        """
         if logit is None:
             return None
 
@@ -96,12 +205,14 @@ class Network(object):
             freq_range = (self.flags.freq_high - self.flags.freq_low)/ 2
             custom_loss += torch.sum(torch.relu(torch.abs(w0 - freq_mean) - freq_range))
         if g is not None:
-            if epoch < 100:
-                custom_loss += 100*torch.sum(torch.relu(-g + 0.05))
+            if epoch is not None and epoch < 100:
+                custom_loss += torch.sum(torch.relu(-g + 0.05))
             else:
-                custom_loss += 100 * torch.sum(torch.relu(-g + 0.05))
+                custom_loss += 100 * torch.sum(torch.relu(-g))
         if wp is not None:
             custom_loss += 100*torch.sum(torch.relu(-wp))
+        if peak_loss and epoch < 1000:
+            custom_loss += self.peak_finder_loss(labels=labels, w0=w0, w_base=self.model.w)
         # custom_loss = nn.functional.smooth_l1_loss(logit, labels)
         # additional_loss_term = self.lorentz_product_loss_term(logit, labels)
         # additional_loss_term = self.peak_finder_loss(logit, labels)
@@ -259,11 +370,11 @@ class Network(object):
                 #print("mean of spectra target", np.mean(spectra.data.numpy()))
                 logit,w0,wp,g = self.model(geometry)            # Get the output
 
-                if j == 0 and epoch % self.flags.eval_step == 0:
+                #if j == 0 and epoch % self.flags.eval_step == 0:
                     #print("shpe of wp", np.shape(wp.cpu().detach().numpy()))
-                    print("wp = ", wp.cpu().detach().numpy()[0,:])
-                    print("w0 = ", w0.cpu().detach().numpy()[0,:])
-                    print("g = ", g.cpu().detach().numpy()[0,:])
+                    #print("wp = ", wp.cpu().detach().numpy()[0,:])
+                    #print("w0 = ", w0.cpu().detach().numpy()[0,:])
+                    #print("g = ", g.cpu().detach().numpy()[0, :]*0.1)
                     #print("Mean of logit is:", np.mean(logit.cpu().detach().numpy()))
                     #print("Mean of spectra is:", np.mean(spectra.cpu().detach().numpy()[:, 12:]))
                     #print("logit is:",logit.cpu().detach().numpy()[0, :])
@@ -272,13 +383,13 @@ class Network(object):
                 # print("spectra type:", spectra.dtype)
 
                 #loss = self.make_MSE_loss(logit, spectra)              # Get the loss tensor
-                loss = self.make_custom_loss(logit, spectra[:, 12:], w0=w0, g=g, wp=wp, epoch=epoch)
+                loss = self.make_custom_loss(logit, spectra[:, 12:], w0=w0,
+                                             g=g, wp=wp, epoch=epoch, peak_loss=True)
                 # print(loss)
                 loss.backward()
                 if self.flags.use_clip:
-                    if self.flags.use_clip:
-                        torch.nn.utils.clip_grad_value_(self.model.parameters(), self.flags.grad_clip)
-                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.flags.grad_clip)
+                    torch.nn.utils.clip_grad_value_(self.model.parameters(), self.flags.grad_clip)
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.flags.grad_clip)
 
                 if epoch % self.flags.record_step == 0:
                     if j == 0:
@@ -293,7 +404,8 @@ class Network(object):
                 self.optm_all.step()                                        # Move one step the optimizer
                 for ii in range(self.flags.optimize_w0_ratio):
                     logit, w0, wp, g = self.model(geometry)  # Get the output
-                    loss = self.make_custom_loss(logit, spectra[:, 12:], w0=w0, g=g, wp=wp)
+                    loss = self.make_custom_loss(logit, spectra[:, 12:], w0=w0, g=g, wp=wp,
+                                                 epoch=ii, peak_loss=True)
                     loss.backward()
                     self.optm_w0.step()
                 # self.record_weight(name='after_optm_step', batch=j, epoch=epoch)
@@ -304,13 +416,13 @@ class Network(object):
 
             # Calculate the avg loss of training
             train_avg_loss = np.mean(train_loss)
-            train_avg_eval_mode_loss = np.mean(train_loss_eval_mode_list)
+            #train_avg_eval_mode_loss = np.mean(train_loss_eval_mode_list)
 
             if epoch % self.flags.eval_step == 0:           # For eval steps, do the evaluations and tensor board
                 # Record the training loss to tensorboard
                 #train_avg_loss = train_loss.data.numpy() / (j+1)
                 self.log.add_scalar('Loss/ Training Loss', train_avg_loss, epoch)
-                self.log.add_scalar('Loss/ Batchnorm Training Loss', train_avg_eval_mode_loss, epoch)
+                #self.log.add_scalar('Loss/ Batchnorm Training Loss', train_avg_eval_mode_loss, epoch)
                 # self.log.add_scalar('Running Loss', train_avg_eval_mode_loss, epoch)
 
                 # Set to Evaluation Mode
@@ -324,7 +436,8 @@ class Network(object):
                             spectra = spectra.cuda()
                         logit,w0,wp,g = self.model(geometry)
                         #loss = self.make_MSE_loss(logit, spectra)                   # compute the loss
-                        loss = self.make_custom_loss(logit, spectra[:, 12:], w0=w0, g=g, wp=wp)
+                        loss = self.make_custom_loss(logit, spectra[:, 12:])#, w0=w0, g=g, wp=wp,
+                                                     #epoch=epoch, peak_loss=True)
                         test_loss.append(np.copy(loss.cpu().data.numpy()))           # Aggregate the loss
 
                         if j == 0 and epoch % self.flags.record_step == 0:

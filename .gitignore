@@ -5,8 +5,10 @@ evaluate_model.py
 __pycache__/
 */*.csv
 */*.png
-*/*.jpg
+**/*.jpg
+**.jpg
 */*.sh
+idea
 .idea/*
 run02.sh
 */*.err

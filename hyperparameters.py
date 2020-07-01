@@ -14,21 +14,21 @@ CONV_STRIDE = [2, 1, 1]
 # Optimization parameters
 OPTIM = "Adam"
 REG_SCALE = 1e-3
-BATCH_SIZE = 256
-EVAL_STEP = 10
-RECORD_STEP = 10
-TRAIN_STEP = 300
-LEARN_RATE = 1e-3
+BATCH_SIZE = 128
+EVAL_STEP = 50
+RECORD_STEP = 50
+TRAIN_STEP = 3000
+LEARN_RATE = 1e-2
 # DECAY_STEP = 25000 # This is for step decay, however we are using dynamic decaying
-LR_DECAY_RATE = 0.99
-STOP_THRESHOLD = 1e-5
+LR_DECAY_RATE = 0.9
+STOP_THRESHOLD = 1
 USE_CLIP = False
 GRAD_CLIP = 1
 USE_WARM_RESTART = False
 LR_WARM_RESTART = 600
 ERR_EXP = 2
 DELTA = 0
-OPTIMIZE_W0_RATIO = 5
+OPTIMIZE_W0_RATIO = 0
 
 # Data Specific parameters
 X_RANGE = [i for i in range(0, 8 )]
@@ -46,7 +46,7 @@ TEST_RATIO = 0.2
 
 # Running specific
 USE_CPU_ONLY = False
-MODEL_NAME = 'Train_Optimize_0_times_no_clip_all_boundary_loss_leaky_relu_mydiv2_gbound005'
+MODEL_NAME = 'With_peak_finding'
 EVAL_MODEL = None
 PRE_TRAIN_MODEL = 'Pretrain'
 NUM_PLOT_COMPARE = 5
