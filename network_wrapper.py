@@ -179,7 +179,8 @@ class Network(object):
         return loss_penalty * F.mse_loss(w0_sort, peaks)
 
     def make_custom_loss(self, logit=None, labels=None, w0=None,
-                         g=None, wp=None, epoch=None, peak_loss=False):
+                         g=None, wp=None, epoch=None, peak_loss=False,
+                         gt_lor=None, lor_ratio=0, lor_weight=1):
         """
         The custom master loss function
         :param logit: The model output
@@ -189,17 +190,21 @@ class Network(object):
         :param wp: The Lorentzian parameter output wp
         :param epoch: The current epoch number
         :param peak_loss: Whether use peak_finding_loss or not
+        :param gt_lor: The ground truth Lorentzian parameter
+        :param lor_ratio: The ratio of lorentzian parameter to spectra during training
         :return:
         """
         if logit is None:
             return None
 
-        # Loss function to handle the gradients of the Lorentz layer
-
-        # custom_loss = torch.mean(torch.mean((logit - labels)**self.flags.err_exp, 1))
-        # custom_loss = torch.mean(torch.norm((logit-labels),p=4))/logit.shape[0]
+        ############
+        # MSE Loss #
+        ############
         custom_loss = nn.functional.mse_loss(logit, labels, reduction='mean')
-        # Boundary loss part
+
+        ######################
+        # Boundary loss part #
+        ######################
         if w0 is not None:
             freq_mean = (self.flags.freq_low + self.flags.freq_high)/ 2
             freq_range = (self.flags.freq_high - self.flags.freq_low)/ 2
@@ -211,14 +216,30 @@ class Network(object):
                 custom_loss += 100 * torch.sum(torch.relu(-g))
         if wp is not None:
             custom_loss += 100*torch.sum(torch.relu(-wp))
-        if peak_loss and epoch < 1000:
+
+        #####################
+        # Peak finding loss #
+        #####################
+        if peak_loss and epoch < 100:
             custom_loss += self.peak_finder_loss(labels=labels, w0=w0, w_base=self.model.w)
+
+        ###############################
+        # Facilitated Lorentzian loss #
+        ###############################
+        if gt_lor is not None:
+            # Probablistic accepting Lorentzian loss
+            random_number = np.random.uniform(size=1)
+            if random_number < lor_ratio:   # Accept this with Lorentzian loss
+                custom_loss += lor_weight*nn.functional.mse_loss(w0, gt_lor[:, :4])
+                custom_loss += lor_weight*nn.functional.mse_loss(wp, gt_lor[:, 4:8])
+                custom_loss += lor_weight*nn.functional.mse_loss(g, gt_lor[:, 8:12]*10)
         # custom_loss = nn.functional.smooth_l1_loss(logit, labels)
         # additional_loss_term = self.lorentz_product_loss_term(logit, labels)
         # additional_loss_term = self.peak_finder_loss(logit, labels)
         # custom_loss += additional_loss_term
-
+        
         return custom_loss
+
 
     def make_optimizer(self, param=None):
         """
@@ -252,9 +273,14 @@ class Network(object):
         :return:
         """
         # return lr_scheduler.StepLR(optimizer=self.optm, step_size=50, gamma=0.75, last_epoch=-1)
-        return lr_scheduler.ReduceLROnPlateau(optimizer=self.optm_all, mode='min',
+        try:
+            return lr_scheduler.ReduceLROnPlateau(optimizer=self.optm_all, mode='min',
                                         factor=self.flags.lr_decay_rate,
                                           patience=10, verbose=True, threshold=1e-4)
+        except:
+            return lr_scheduler.ReduceLROnPlateau(optimizer=self.optm, mode='min',
+                                                  factor=self.flags.lr_decay_rate,
+                                                  patience=10, verbose=True, threshold=1e-4)
 
 
 
@@ -384,7 +410,9 @@ class Network(object):
 
                 #loss = self.make_MSE_loss(logit, spectra)              # Get the loss tensor
                 loss = self.make_custom_loss(logit, spectra[:, 12:], w0=w0,
-                                             g=g, wp=wp, epoch=epoch, peak_loss=True)
+                                             g=g, wp=wp, epoch=epoch, peak_loss=False,
+                                             gt_lor=spectra[:, :12], lor_ratio=self.flags.lor_ratio,
+                                             lor_weight=self.flags.lor_weight)
                 # print(loss)
                 loss.backward()
                 if self.flags.use_clip:
@@ -402,6 +430,10 @@ class Network(object):
 
 
                 self.optm_all.step()                                        # Move one step the optimizer
+
+                ####################################
+                # Extra training loop for w0 alone #
+                ####################################
                 for ii in range(self.flags.optimize_w0_ratio):
                     logit, w0, wp, g = self.model(geometry)  # Get the output
                     loss = self.make_custom_loss(logit, spectra[:, 12:], w0=w0, g=g, wp=wp,
@@ -549,7 +581,8 @@ class Network(object):
 
                 # Pretraining files contain both Lorentz parameters and simulated model spectra
                 pretrain_sim_prediction = params_truth[:, 12:]
-                pretrain_model_prediction = Lorentz_layer(w0,wp,g/10)
+                pretrain_model_prediction = logit
+                #pretrain_model_prediction = Lorentz_layer(w0,wp,g/10)
 
                 for j in range(self.flags.num_plot_compare):
                     f = compare_spectra(Ypred=pretrain_model_prediction[j, :].cpu().data.numpy(),

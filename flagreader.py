@@ -80,6 +80,10 @@ def read_flag():
     parser.add_argument('--num-plot-compare', type=int, default=NUM_PLOT_COMPARE,
                         help='#Plots to store in tensorboard during training for spectra compare')
     parser.add_argument('--model-name', default=MODEL_NAME, type=str, help='name of the model')
+    parser.add_argument('--lor-ratio', default=LOR_RATIO, type=float,
+                        help='The ratio of the facilitated lorentzian ')
+    parser.add_argument('--lor-weight', default=LOR_WEIGHT, type=float,
+                        help='The weight of Lorentzian loss ')
     flags = parser.parse_args()  # This is for command line version of the code
     # flags = parser.parse_args(args = [])#This is for jupyter notebook version of the code
     # flagsVar = vars(flags)

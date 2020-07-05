@@ -14,14 +14,14 @@ CONV_STRIDE = [2, 1, 1]
 # Optimization parameters
 OPTIM = "Adam"
 REG_SCALE = 1e-3
-BATCH_SIZE = 128
-EVAL_STEP = 50
-RECORD_STEP = 50
-TRAIN_STEP = 3000
+BATCH_SIZE = 1024
+EVAL_STEP = 20
+RECORD_STEP = 20
+TRAIN_STEP = 100
 LEARN_RATE = 1e-2
 # DECAY_STEP = 25000 # This is for step decay, however we are using dynamic decaying
 LR_DECAY_RATE = 0.9
-STOP_THRESHOLD = 1
+STOP_THRESHOLD = 0.00001
 USE_CLIP = False
 GRAD_CLIP = 1
 USE_WARM_RESTART = False
@@ -43,10 +43,12 @@ DATA_DIR = ''                # For local usage
 GEOBOUNDARY =[20, 200, 20, 100]
 NORMALIZE_INPUT = True
 TEST_RATIO = 0.2
+LOR_RATIO = 1
+LOR_WEIGHT = 10
 
 # Running specific
 USE_CPU_ONLY = False
-MODEL_NAME = 'With_peak_finding'
+MODEL_NAME = 'Pre_train'
 EVAL_MODEL = None
 PRE_TRAIN_MODEL = 'Pretrain'
 NUM_PLOT_COMPARE = 5

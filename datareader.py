@@ -7,6 +7,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from torch.utils.data import Dataset
 from sklearn.model_selection import train_test_split
+from utils import FastTensorDataLoader
 import torch
 
 def importData(directory, x_range, y_range):
@@ -105,10 +106,12 @@ def read_data( x_range, y_range, geoboundary,  batch_size=128,
         ftrTrain[:,4:] = (ftrTrain[:,4:] - (geoboundary[2] + geoboundary[3]) / 2)/(geoboundary[3] - geoboundary[2]) * 2
         ftrTest[:,4:] = (ftrTest[:,4:] - (geoboundary[2] + geoboundary[3]) / 2)/(geoboundary[3] - geoboundary[2]) * 2
 
-    train_data = MetaMaterialDataSet(ftrTrain, lblTrain, bool_train= True)
-    test_data = MetaMaterialDataSet(ftrTest, lblTest, bool_train= False)
-    train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size)
-    test_loader = torch.utils.data.DataLoader(test_data, batch_size=batch_size)
+    #train_data = MetaMaterialDataSet(ftrTrain, lblTrain, bool_train= True)
+    #test_data = MetaMaterialDataSet(ftrTest, lblTest, bool_train= False)
+    train_loader = FastTensorDataLoader(torch.from_numpy(ftrTrain), torch.from_numpy(lblTrain), batch_size=batch_size)
+    test_loader = FastTensorDataLoader(torch.from_numpy(ftrTest), torch.from_numpy(lblTest), batch_size=batch_size)
+    #train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size)
+    #test_loader = torch.utils.data.DataLoader(test_data, batch_size=batch_size)
 
     return train_loader, test_loader
 
