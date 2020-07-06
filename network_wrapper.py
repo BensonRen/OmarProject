@@ -180,7 +180,8 @@ class Network(object):
 
     def make_custom_loss(self, logit=None, labels=None, w0=None,
                          g=None, wp=None, epoch=None, peak_loss=False,
-                         gt_lor=None, lor_ratio=0, lor_weight=1):
+                         gt_lor=None, lor_ratio=0, lor_weight=1,
+                         lor_loss_only=False):
         """
         The custom master loss function
         :param logit: The model output
@@ -192,6 +193,7 @@ class Network(object):
         :param peak_loss: Whether use peak_finding_loss or not
         :param gt_lor: The ground truth Lorentzian parameter
         :param lor_ratio: The ratio of lorentzian parameter to spectra during training
+        :param lor_loss_only: The flag to have only lorentzian loss, this is for alternative training
         :return:
         """
         if logit is None:
@@ -230,9 +232,13 @@ class Network(object):
             # Probablistic accepting Lorentzian loss
             random_number = np.random.uniform(size=1)
             if random_number < lor_ratio:   # Accept this with Lorentzian loss
-                custom_loss += lor_weight*nn.functional.mse_loss(w0, gt_lor[:, :4])
-                custom_loss += lor_weight*nn.functional.mse_loss(wp, gt_lor[:, 4:8])
-                custom_loss += lor_weight*nn.functional.mse_loss(g, gt_lor[:, 8:12]*10)
+                lor_loss = nn.functional.mse_loss(w0, gt_lor[:, :4])
+                lor_loss += nn.functional.mse_loss(wp, gt_lor[:, 4:8])
+                lor_loss += nn.functional.mse_loss(g, gt_lor[:, 8:12]*10)
+                if lor_loss_only:       # Alternating training activated
+                    custom_loss = lor_loss
+                else:                   # Combined loss
+                    custom_loss += lor_loss * lor_weight
         # custom_loss = nn.functional.smooth_l1_loss(logit, labels)
         # additional_loss_term = self.lorentz_product_loss_term(logit, labels)
         # additional_loss_term = self.peak_finder_loss(logit, labels)
@@ -392,7 +398,6 @@ class Network(object):
                     spectra = spectra.cuda()                            # Put data onto GPU
 
                 self.optm_all.zero_grad()                                   # Zero the gradient first
-                self.optm_w0.zero_grad()
                 #print("mean of spectra target", np.mean(spectra.data.numpy()))
                 logit,w0,wp,g = self.model(geometry)            # Get the output
 
@@ -410,9 +415,9 @@ class Network(object):
 
                 #loss = self.make_MSE_loss(logit, spectra)              # Get the loss tensor
                 loss = self.make_custom_loss(logit, spectra[:, 12:], w0=w0,
-                                             g=g, wp=wp, epoch=epoch, peak_loss=False,
-                                             gt_lor=spectra[:, :12], lor_ratio=self.flags.lor_ratio,
-                                             lor_weight=self.flags.lor_weight)
+                                             g=g, wp=wp, epoch=epoch, peak_loss=False)#,
+                                            # gt_lor=spectra[:, :12], lor_ratio=self.flags.lor_ratio,
+                                            # lor_weight=self.flags.lor_weight)
                 # print(loss)
                 loss.backward()
                 if self.flags.use_clip:
@@ -430,17 +435,31 @@ class Network(object):
 
 
                 self.optm_all.step()                                        # Move one step the optimizer
-
+                """
                 ####################################
                 # Extra training loop for w0 alone #
                 ####################################
                 for ii in range(self.flags.optimize_w0_ratio):
+                    self.optm_w0.zero_grad()
                     logit, w0, wp, g = self.model(geometry)  # Get the output
                     loss = self.make_custom_loss(logit, spectra[:, 12:], w0=w0, g=g, wp=wp,
                                                  epoch=ii, peak_loss=True)
                     loss.backward()
                     self.optm_w0.step()
-                # self.record_weight(name='after_optm_step', batch=j, epoch=epoch)
+                """
+                ######################################
+                # Alternating training for Lor param #
+                ######################################
+                for ii in range(self.flags.train_lor_step):
+                    self.optm_all.zero_grad()
+                    logit, w0, wp, g = self.model(geometry)  # Get the output
+                    loss = self.make_custom_loss(logit, spectra[:, 12:], w0=w0, g=g, wp=wp,
+                                                 epoch=ii, peak_loss=True, gt_lor=spectra[:, :12],
+                                                 lor_ratio=self.flags.lor_ratio,
+                                                 lor_weight=self.flags.lor_weight,
+                                                 lor_loss_only=True)
+                    loss.backward()
+                    self.optm_all.step()
 
                 train_loss.append(np.copy(loss.cpu().data.numpy()))     # Aggregate the loss
                 self.running_loss.append(np.copy(loss.cpu().data.numpy()))

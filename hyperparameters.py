@@ -45,6 +45,7 @@ NORMALIZE_INPUT = True
 TEST_RATIO = 0.2
 LOR_RATIO = 1
 LOR_WEIGHT = 10
+TRAIN_LOR_STEP = 40
 
 # Running specific
 USE_CPU_ONLY = False

@@ -16,8 +16,9 @@
 4. Incorporate auxilliary network(s) for capturing 2nd order effects (e.g. scattering, spatial dispersion, etc)
 
 ## Stages for realizing the Lorentz param facilitated training
-- [ ] Test out the validity of the concept using Omar's Toy problem of 4 Oscillators
-- [ ] 
+- [x] Test out the validity of the concept using Omar's Toy problem of 4 Oscillators
+- [x] swipe through the facilitation ratio and the loss using random selection
+- [ ] Maximize utility of faciliated labels, change the code structure  to  alternating training 
 
 ## To-do list for Ben
 - [x] Add the module for multi-loss training
