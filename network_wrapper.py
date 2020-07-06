@@ -450,16 +450,18 @@ class Network(object):
                 ######################################
                 # Alternating training for Lor param #
                 ######################################
-                for ii in range(self.flags.train_lor_step):
-                    self.optm_all.zero_grad()
-                    logit, w0, wp, g = self.model(geometry)  # Get the output
-                    loss = self.make_custom_loss(logit, spectra[:, 12:], w0=w0, g=g, wp=wp,
-                                                 epoch=ii, peak_loss=True, gt_lor=spectra[:, :12],
-                                                 lor_ratio=self.flags.lor_ratio,
-                                                 lor_weight=self.flags.lor_weight,
-                                                 lor_loss_only=True)
-                    loss.backward()
-                    self.optm_all.step()
+                if np.random.uniform(size=1) < self.flags.lor_ratio:
+                    print("entering one batch of facilitated training")
+                    for ii in range(self.flags.train_lor_step):
+                        self.optm_all.zero_grad()
+                        logit, w0, wp, g = self.model(geometry)  # Get the output
+                        loss = self.make_custom_loss(logit, spectra[:, 12:], w0=w0, g=g, wp=wp,
+                                                     epoch=ii, peak_loss=True, gt_lor=spectra[:, :12],
+                                                     lor_ratio=1,
+                                                     lor_weight=self.flags.lor_weight,
+                                                     lor_loss_only=True)
+                        loss.backward()
+                        self.optm_all.step()
 
                 train_loss.append(np.copy(loss.cpu().data.numpy()))     # Aggregate the loss
                 self.running_loss.append(np.copy(loss.cpu().data.numpy()))
