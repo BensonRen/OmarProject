@@ -10,6 +10,7 @@ __pycache__/
 */*.sh
 idea
 .idea/*
-run02.sh
+*.sh
+**.err
 */*.err
 /Pytorch learning/

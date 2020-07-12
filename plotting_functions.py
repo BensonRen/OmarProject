@@ -268,7 +268,7 @@ def HeatMapBVL(plot_x_name, plot_y_name, title,  save_name='HeatMap.png', HeatMa
         print("bv_loss_list:", bv_loss_list)
         print("feature_1_list:",feature_1_list)
         #start plotting
-        plt.plot(feature_1_list, bv_loss_list,'o-')
+        plt.plot(feature_1_list, bv_loss_list,'o')
     else: #Or this is a 2 dimension HeatMap
         print("plotting 2 dimension HeatMap")
         #point_df = pd.DataFrame.from_records([point.to_dict() for point in HMpoint_list])
@@ -282,6 +282,10 @@ def HeatMapBVL(plot_x_name, plot_y_name, title,  save_name='HeatMap.png', HeatMa
         point_df_pivot = df_aggregate.reset_index().pivot(index=feature_1_name, columns=feature_2_name, values=heat_value_name).astype(float)
         point_df_pivot = point_df_pivot.rename({'5': '05'}, axis=1)
         point_df_pivot = point_df_pivot.reindex(sorted(point_df_pivot.columns), axis=1)
+        print("Columns are:", list(point_df_pivot.columns))
+        reordered_col_name = reorder_list_of_string(list(point_df_pivot.columns))
+        print("reordered col names: ", reordered_col_name)
+        point_df_pivot = point_df_pivot[reordered_col_name]
         print("pivot=")
         csvname = HeatMap_dir + 'pivoted.csv'
         point_df_pivot.to_csv(csvname)
@@ -291,6 +295,17 @@ def HeatMapBVL(plot_x_name, plot_y_name, title,  save_name='HeatMap.png', HeatMa
     plt.ylabel(plot_x_name)                 # Note that the pivot gives reversing labels
     plt.title(title)
     plt.savefig(save_name)
+
+def reorder_list_of_string(input_list):
+    """
+    Take the list of strings that is number and return a ordered list
+    """
+    number_list = []
+    for string_num in input_list:
+        number_list.append(eval(string_num))
+    sorted_num = sorted(number_list)
+    return [str(num) for num in sorted_num]
+
 
 def calculate_AREA(Xpred, Xtruth):
     """
