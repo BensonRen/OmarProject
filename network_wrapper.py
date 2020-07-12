@@ -232,9 +232,16 @@ class Network(object):
             # Probablistic accepting Lorentzian loss
             random_number = np.random.uniform(size=1)
             if random_number < lor_ratio:   # Accept this with Lorentzian loss
-                lor_loss = nn.functional.mse_loss(w0, gt_lor[:, :4])
-                lor_loss += nn.functional.mse_loss(wp, gt_lor[:, 4:8])
-                lor_loss += nn.functional.mse_loss(g, gt_lor[:, 8:12]*10)
+                # 2020.07.12 to test whether the permutated Lorentzian label can have the same effect
+                permuted = np.random.permutation(4)
+                lor_loss = nn.functional.mse_loss(w0, gt_lor[:, permuted])
+                lor_loss += nn.functional.mse_loss(wp, gt_lor[:, permuted + 4])
+                lor_loss += nn.functional.mse_loss(g, gt_lor[:, permuted + 8] * 10)
+
+                #lor_loss = nn.functional.mse_loss(w0, gt_lor[:, :4])
+                #lor_loss += nn.functional.mse_loss(wp, gt_lor[:, 4:8])
+                #lor_loss += nn.functional.mse_loss(g, gt_lor[:, 8:12]*10)
+
                 if lor_loss_only:       # Alternating training activated
                     custom_loss = lor_loss
                 else:                   # Combined loss

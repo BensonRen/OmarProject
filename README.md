@@ -18,8 +18,8 @@
 ## Stages for realizing the Lorentz param facilitated training
 - [x] Test out the validity of the concept using Omar's Toy problem of 4 Oscillators
 - [x] swipe through the facilitation ratio and the loss using random selection
-- [ ] Maximize utility of faciliated labels, change the code structure  to  alternating training 
+- [x] Maximize utility of faciliated labels, change the code structure  to  alternating training 
+- [ ] Test out the hypothesis of unmatching labels would harm training instead of helping, add the permuated Lorentz labels as the training
 
 ## To-do list for Ben
 - [x] Add the module for multi-loss training
-- [ ] Different data loading module (Awaits next step instruction)
