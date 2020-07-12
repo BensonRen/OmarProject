@@ -181,7 +181,7 @@ class Network(object):
     def make_custom_loss(self, logit=None, labels=None, w0=None,
                          g=None, wp=None, epoch=None, peak_loss=False,
                          gt_lor=None, lor_ratio=0, lor_weight=1,
-                         lor_loss_only=False):
+                         lor_loss_only=False, gt_match_style='undefined'):
         """
         The custom master loss function
         :param logit: The model output
@@ -194,6 +194,10 @@ class Network(object):
         :param gt_lor: The ground truth Lorentzian parameter
         :param lor_ratio: The ratio of lorentzian parameter to spectra during training
         :param lor_loss_only: The flag to have only lorentzian loss, this is for alternative training
+        :param gt_match_style: The style of matching the GT Lor param to the network output:
+              'gt': The ground truth correspondence matching
+              'random': The permutated matching in random
+              'peak': Match according to the sorted peaks (w0 values sequence)
         :return:
         """
         if logit is None:
@@ -228,29 +232,35 @@ class Network(object):
         ###############################
         # Facilitated Lorentzian loss #
         ###############################
-        if gt_lor is not None:
+        if gt_lor is not None and epoch < 250:
             # Probablistic accepting Lorentzian loss
             random_number = np.random.uniform(size=1)
             if random_number < lor_ratio:   # Accept this with Lorentzian loss
                 # 2020.07.12 to test whether the permutated Lorentzian label can have the same effect
-                permuted = np.random.permutation(4)
-                lor_loss = nn.functional.mse_loss(w0, gt_lor[:, permuted])
-                lor_loss += nn.functional.mse_loss(wp, gt_lor[:, permuted + 4])
-                lor_loss += nn.functional.mse_loss(g, gt_lor[:, permuted + 8] * 10)
-
-                #lor_loss = nn.functional.mse_loss(w0, gt_lor[:, :4])
-                #lor_loss += nn.functional.mse_loss(wp, gt_lor[:, 4:8])
-                #lor_loss += nn.functional.mse_loss(g, gt_lor[:, 8:12]*10)
+                if gt_match_style == 'random':
+                    permuted = np.random.permutation(4)
+                    lor_loss = nn.functional.mse_loss(w0, gt_lor[:, permuted])
+                    lor_loss += nn.functional.mse_loss(wp, gt_lor[:, permuted + 4])
+                    lor_loss += nn.functional.mse_loss(g, gt_lor[:, permuted + 8] * 10)
+                elif gt_match_style == 'gt':
+                    lor_loss = nn.functional.mse_loss(w0, gt_lor[:, :4])
+                    lor_loss += nn.functional.mse_loss(wp, gt_lor[:, 4:8])
+                    lor_loss += nn.functional.mse_loss(g, gt_lor[:, 8:12]*10)
+                elif gt_match_style == 'peak':
+                    # Sort the gt and network output
+                    gt_w0_sort, gt_rank_index = torch.sort(gt_lor[:, :4])
+                    ntwk_w0_sort, ntwk_rank_index = torch.sort(w0)
+                    lor_loss = nn.functional.mse_loss(w0[:, ntwk_rank_index], gt_lor[:, gt_rank_index])
+                    lor_loss += nn.functional.mse_loss(wp[:, ntwk_rank_index], gt_lor[:, gt_rank_index+4])
+                    lor_loss += nn.functional.mse_loss(g[:, ntwk_rank_index], gt_lor[:, gt_rank_index+8] * 10)
+                else:
+                    raise ValueError("Your gt_match_style in custom loss should be one of 'random',"
+                                     " 'gt' or 'peak', please contact Ben for details")
 
                 if lor_loss_only:       # Alternating training activated
                     custom_loss = lor_loss
                 else:                   # Combined loss
                     custom_loss += lor_loss * lor_weight
-        # custom_loss = nn.functional.smooth_l1_loss(logit, labels)
-        # additional_loss_term = self.lorentz_product_loss_term(logit, labels)
-        # additional_loss_term = self.peak_finder_loss(logit, labels)
-        # custom_loss += additional_loss_term
-        
         return custom_loss
 
 
@@ -422,9 +432,9 @@ class Network(object):
 
                 #loss = self.make_MSE_loss(logit, spectra)              # Get the loss tensor
                 loss = self.make_custom_loss(logit, spectra[:, 12:], w0=w0,
-                                             g=g, wp=wp, epoch=epoch, peak_loss=False)#,
-                                            #gt_lor=spectra[:, :12], lor_ratio=self.flags.lor_ratio,
-                                            #lor_weight=self.flags.lor_weight)
+                                             g=g, wp=wp, epoch=epoch, peak_loss=False,
+                                            gt_lor=spectra[:, :12], lor_ratio=self.flags.lor_ratio,
+                                            lor_weight=self.flags.lor_weight, gt_match_style='gt')
                 # print(loss)
                 loss.backward()
                 if self.flags.use_clip:
@@ -457,7 +467,7 @@ class Network(object):
                 ######################################
                 # Alternating training for Lor param #
                 ######################################
-                if np.random.uniform(size=1) < self.flags.lor_ratio:
+                if np.random.uniform(size=1) < self.flags.lor_ratio and False:
                     print("entering one batch of facilitated training")
                     for ii in range(self.flags.train_lor_step):
                         self.optm_all.zero_grad()

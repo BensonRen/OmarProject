@@ -19,7 +19,8 @@
 - [x] Test out the validity of the concept using Omar's Toy problem of 4 Oscillators
 - [x] swipe through the facilitation ratio and the loss using random selection
 - [x] Maximize utility of faciliated labels, change the code structure  to  alternating training 
-- [ ] Test out the hypothesis of unmatching labels would harm training instead of helping, add the permuated Lorentz labels as the training
-
+- [x] Test out the hypothesis of unmatching labels would harm training instead of helping, add the permuated Lorentz labels as the training
+- [x] Simulate on toy data set if the Lorentzian correspondence is built according to the frequency rank
+- [ ] Debug the code on DCC for the new modes of gt_match_style == 'random' and 'peak'
 ## To-do list for Ben
 - [x] Add the module for multi-loss training
