@@ -434,7 +434,8 @@ class Network(object):
                 loss = self.make_custom_loss(logit, spectra[:, 12:], w0=w0,
                                              g=g, wp=wp, epoch=epoch, peak_loss=False,
                                             gt_lor=spectra[:, :12], lor_ratio=self.flags.lor_ratio,
-                                            lor_weight=self.flags.lor_weight, gt_match_style='gt')
+                                            lor_weight=self.flags.lor_weight, 
+                                            gt_match_style=self.flags.gt_match_style)
                 # print(loss)
                 loss.backward()
                 if self.flags.use_clip:
