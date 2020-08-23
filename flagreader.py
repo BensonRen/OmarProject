@@ -86,6 +86,8 @@ def read_flag():
                         help='The weight of Lorentzian loss ')
     parser.add_argument('--train-lor-step', default=TRAIN_LOR_STEP, type=int,
                         help='The #steps to train the lorentz param in alternating training')
+    parser.add_argument('--gt-match-style', default=GT_MATCH_STYLE, type=str,
+                        help='When using Ground truth Lorentz parameter as facilitation, this states the rule of correspondence')
 
     flags = parser.parse_args()  # This is for command line version of the code
     # flags = parser.parse_args(args = [])#This is for jupyter notebook version of the code
