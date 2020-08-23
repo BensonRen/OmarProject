@@ -40,7 +40,7 @@ def Lorentzian(w0, wp, g):
     #                   np.add(np.power(np.add(np.power(w0, 2), -np.power(w, 2)), 2),
     #                          np.multiply(np.power(w, 2), np.power(g, 2))))
 
-    e2 = np.divide(np.multiply(np.power(wp, 2), np.multiply(w, np.power(g, 2))),
+    e2 = np.divide(np.multiply(np.power(wp, 2), np.multiply(w, g)),
              np.add(np.power(np.add(np.power(w0, 2), -np.power(w, 2)), 2),
                     np.multiply(np.power(w, 2), np.power(g, 2))))
 

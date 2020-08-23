@@ -181,7 +181,8 @@ class Network(object):
     def make_custom_loss(self, logit=None, labels=None, w0=None,
                          g=None, wp=None, epoch=None, peak_loss=False,
                          gt_lor=None, lor_ratio=0, lor_weight=1,
-                         lor_loss_only=False, gt_match_style='undefined'):
+                         lor_loss_only=False, gt_match_style='undefined',
+                         gradient_descend=True):
         """
         The custom master loss function
         :param logit: The model output
@@ -198,6 +199,7 @@ class Network(object):
               'gt': The ground truth correspondence matching
               'random': The permutated matching in random
               'peak': Match according to the sorted peaks (w0 values sequence)
+        :param gradient_descend: The flag of gradient descend or ascend
         :return:
         """
         if logit is None:
@@ -207,6 +209,10 @@ class Network(object):
         # MSE Loss #
         ############
         custom_loss = nn.functional.mse_loss(logit, labels, reduction='mean')
+
+        # Gradient ascent
+        if gradient_descend is False:
+            custom_loss *= -0.1
 
         ######################
         # Boundary loss part #
@@ -261,6 +267,8 @@ class Network(object):
                     custom_loss = lor_loss
                 else:                   # Combined loss
                     custom_loss += lor_loss * lor_weight
+
+
         return custom_loss
 
 
@@ -309,25 +317,30 @@ class Network(object):
 
     def save(self):
         """
-        Saving the model to the current check point folder with name best_model.pt
+        Saving the model to the current check point folder with name best_model_MSE3.pt
         :return: None
         """
-        torch.save(self.model, os.path.join(self.ckpt_dir, 'best_model.pt'))
+        torch.save(self.model, os.path.join(self.ckpt_dir, 'best_model_MSE3.pt'))
 
     def load(self):
         """
-        Loading the model from the check point folder with name best_model.pt
+        Loading the model from the check point folder with name best_model_MSE3.pt
         :return:
         """
-        self.model = torch.load(os.path.join(self.ckpt_dir, 'best_model.pt'))
+        self.model = torch.load(os.path.join(self.ckpt_dir, 'best_model_MSE3.pt'))
 
     def load_pretrain(self):
         """
-        Loading the model from the check point folder with name best_model.pt
+        Loading the model from the check point folder with name best_model_MSE3.pt
         :return:
         """
-        pt_file = os.path.join('models', self.pre_train_model, 'best_pretrained_model.pt')
-        self.model = torch.load(pt_file)
+        try:
+            pt_file = os.path.join('models', self.pre_train_model, 'best_pretrained_model.pt')
+            self.model = torch.load(pt_file)
+        except:
+            pt_file = os.path.join('models', self.pre_train_model, 'best_model_MSE3.pt')
+            self.model = torch.load(pt_file)
+
 
     def record_weight(self, name='Weights', layer=None, batch=999, epoch=999):
         """
@@ -385,6 +398,29 @@ class Network(object):
             self.log.add_figure(tag='1_Gradients_' + name + '_Layer'.format(1),
                                 figure=f, global_step=epoch)
 
+    def reset_lr(self, optm):
+        """
+        Reset the learning rate to to original lr
+        :param optm: The optimizer
+        :return: None
+        """
+        self.lr_scheduler = self.make_lr_scheduler()
+        for g in optm.param_groups:
+            g['lr'] = self.flags.lr
+
+    def train_stuck_by_lr(self, optm, lr_limit):
+        """
+        Detect whether the training is stuck with the help of LR scheduler which decay when plautue
+        :param optm: The optimizer
+        :param lr_limit: The limit it judge it is stuck
+        :return: Boolean value of whether it is stuck
+        """
+        for g in optm.param_groups:
+            if g['lr'] < lr_limit:
+                return True
+            else:
+                return False
+
 
     def train(self):
         """
@@ -403,8 +439,15 @@ class Network(object):
                                            .append(self.model.lin_w0.parameters()))
         self.lr_scheduler = self.make_lr_scheduler()
 
-        for epoch in range(self.flags.train_step):
-            # print("This is training Epoch {}".format(epoch))
+        # Set the training flag to be True at the start, this is for the gradient ascend
+        train_flag = True
+        epoch = 0
+        gradient_descend = True
+
+        #for epoch in range(self.flags.train_step):         # Normal training
+        while train_flag:
+            if gradient_descend is False:
+                print('This is Epoch {} doing gradient ascend to avoid local minimum'.format(epoch))
             # Set to Training Mode
             train_loss = []
             train_loss_eval_mode_list = []
@@ -418,23 +461,15 @@ class Network(object):
                 #print("mean of spectra target", np.mean(spectra.data.numpy()))
                 logit,w0,wp,g = self.model(geometry)            # Get the output
 
-                #if j == 0 and epoch % self.flags.eval_step == 0:
-                    #print("shpe of wp", np.shape(wp.cpu().detach().numpy()))
-                    #print("wp = ", wp.cpu().detach().numpy()[0,:])
-                    #print("w0 = ", w0.cpu().detach().numpy()[0,:])
-                    #print("g = ", g.cpu().detach().numpy()[0, :]*0.1)
-                    #print("Mean of logit is:", np.mean(logit.cpu().detach().numpy()))
-                    #print("Mean of spectra is:", np.mean(spectra.cpu().detach().numpy()[:, 12:]))
-                    #print("logit is:",logit.cpu().detach().numpy()[0, :])
-                    #print("spectra is:", spectra.cpu().detach().numpy()[0, 12:])
-                # print("logit type:", logit.dtype)
-                # print("spectra type:", spectra.dtype)
-
-                #loss = self.make_MSE_loss(logit, spectra)              # Get the loss tensor
-                loss = self.make_custom_loss(logit, spectra[:, 12:], w0=w0,
-                                             g=g, wp=wp, epoch=epoch, peak_loss=False,
-                                            gt_lor=spectra[:, :12], lor_ratio=self.flags.lor_ratio,
-                                            lor_weight=self.flags.lor_weight, gt_match_style='gt')
+                ################
+                # Facilitation #
+                ################
+                #loss = self.make_custom_loss(logit, spectra[:, 12:], w0=w0,
+                #                             g=g, wp=wp, epoch=epoch, peak_loss=False,
+                #                            gt_lor=spectra[:, :12], lor_ratio=self.flags.lor_ratio,
+                #                            lor_weight=self.flags.lor_weight, gt_match_style='gt')
+                loss = self.make_custom_loss(logit, spectra[:, 12:], gradient_descend=gradient_descend,
+                                             w0=w0, g=g, wp=wp)
                 # print(loss)
                 loss.backward()
                 if self.flags.use_clip:
@@ -463,7 +498,7 @@ class Network(object):
                                                  epoch=ii, peak_loss=True)
                     loss.backward()
                     self.optm_w0.step()
-                """
+                
                 ######################################
                 # Alternating training for Lor param #
                 ######################################
@@ -479,16 +514,19 @@ class Network(object):
                                                      lor_loss_only=True)
                         loss.backward()
                         self.optm_all.step()
-
+                """
                 train_loss.append(np.copy(loss.cpu().data.numpy()))     # Aggregate the loss
                 self.running_loss.append(np.copy(loss.cpu().data.numpy()))
 
 
             # Calculate the avg loss of training
             train_avg_loss = np.mean(train_loss)
+            if not gradient_descend:
+                train_avg_loss *= -1
             #train_avg_eval_mode_loss = np.mean(train_loss_eval_mode_list)
 
-            if epoch % self.flags.eval_step == 0:           # For eval steps, do the evaluations and tensor board
+            # Validation part
+            if epoch % self.flags.eval_step == 0 or not gradient_descend:           # For eval steps, do the evaluations and tensor board
                 # Record the training loss to tensorboard
                 #train_avg_loss = train_loss.data.numpy() / (j+1)
                 self.log.add_scalar('Loss/ Training Loss', train_avg_loss, epoch)
@@ -535,18 +573,42 @@ class Network(object):
                               (epoch, self.best_validation_loss))
                         return None
 
-            # # Learning rate decay upon plateau
-            self.lr_scheduler.step(train_avg_loss)
-            # # self.lr_scheduler.step()
+            if gradient_descend:                # If currently in gradient descend mode
+                # # Learning rate decay upon plateau
+                self.lr_scheduler.step(train_avg_loss)
+                if loss.detach().cpu().numpy() > 0.1:
+                    # If the LR changed (i.e. training stuck) and also loss is large
+                    if self.train_stuck_by_lr(self.optm_all, self.flags.lr/4):
+                        # Switch to the gradient ascend mode
+                        gradient_descend = False
+                else:
+                    print("The loss is lower than 1! good news")
+                    # Stop the training
+                    train_flag = False
 
+            else:                               # Currently in ascent mode, change to gradient descend mode
+                print("After the gradient ascend, switching back to gradient descend")
+                gradient_descend = True         # Change to Gradient descend mode
+                self.reset_lr(self.optm_all)    # reset lr
+
+            epoch += 1
+            if epoch > self.flags.train_step:
+                train_flag = False
+
+            """
+            ################
+            # Warm restart #
+            ################
             if self.flags.use_warm_restart:
                 if epoch % self.flags.lr_warm_restart == 0:
                     for param_group in self.optm.param_groups:
                         param_group['lr'] = self.flags.lr
                         print('Resetting learning rate to %.5f' % self.flags.lr)
+            """
 
         self.log.close()
         # np.savetxt(time.strftime('%Y%m%d_%H%M%S', time.localtime())+'.csv', self.running_loss, delimiter=",")
+        self.save()
 
     def pretrain(self):
         """
