@@ -41,6 +41,7 @@ def read_flag():
     parser.add_argument('--record-step', default=RECORD_STEP, type=int, help='# steps between recording images to tb')
     parser.add_argument('--train-step', default=TRAIN_STEP, type=int, help='# steps to train on the dataSet')
     parser.add_argument('--lr', default=LEARN_RATE, type=float, help='learning rate')
+    parser.add_argument('--gradient-ascend-strength', default=GRADIENT_ASCEND_STRENGTH, type=float, help='the gradient ascend factor into loss')
 #    parser.add_argument('--decay-step', default=DECAY_STEP, type=int,
 #                        help='decay learning rate at this number of steps')
     parser.add_argument('--lr-decay-rate', default=LR_DECAY_RATE, type=float,

@@ -212,7 +212,7 @@ class Network(object):
 
         # Gradient ascent
         if gradient_descend is False:
-            custom_loss *= -0.1
+            custom_loss *= -self.flags.gradient_ascend_strength
 
         ######################
         # Boundary loss part #

@@ -20,14 +20,16 @@ if __name__ == '__main__':
     #    for kernel_second in conv_kernel_size_second_list:
     
     #weight_list = [1, 2, 4, 8, 10, 16, 20, 25, 50] #Full
-    weight_list = [14, 18, 22, 26, 30]  #Subset
+    #weight_list = [14, 18, 22, 26, 30]  #Subset
     #for ratio in np.arange(0.1, 0.6, 0.1):
-    for ratio in np.arange(0.01, 0.1, 0.01):
-        for weight in weight_list:
+    GA_list = [0.1, 0.08, 0.06, 0.04, 0.02, 0.01]
+    for gradient_ascend_strength in GA_list:
+    #for ratio in np.arange(0.01, 0.1, 0.01):
+        #for weight in weight_list:
             # Setting the loop for setting the parameter
             #for i in range(3, 10):
-            flags = flagreader.read_flag()  	#setting the base case
-            
+        flags = flagreader.read_flag()  	#setting the base case
+        flags.gradient_ascend_strength = gradient_ascend_strength
             ############
             # FC layer #
             ############
@@ -52,13 +54,13 @@ if __name__ == '__main__':
             ############################
             # Lorentz ratio and weight #
             ############################
-            flags.lor_ratio = ratio
-            flags.lor_weight = weight
-            for j in range(3):
+            #flags.lor_ratio = ratio
+            #flags.lor_weight = weight
+        for j in range(3):
                 #flags.model_name ="reg"+ str(flags.reg_scale) + "trail_"+str(j) + "linear_num" + str(layer_num) + "_unit_layer" + str(linear_unit)
-                flags.model_name ="Lor_ratio_weight_swipe_trail_"+str(j+10) + "ratio" + str(ratio) + "weight" + str(weight)
+            flags.model_name = 'trail_' + str(j) + '_gradient_ascend_strength_' + str(gradient_ascend_strength)
                         
                         
                 #flags.model_name ="reg"+ str(flags.reg_scale) + "trail_"+str(j) + "_conv_kernel_swipe[" + str(kernel_first)+ "," + str(kernel_second) + "," + str(kernel_second) + "]"
-                train.training_from_flag(flags)
+            train.training_from_flag(flags)
 
