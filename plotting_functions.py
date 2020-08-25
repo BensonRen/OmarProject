@@ -268,6 +268,7 @@ def HeatMapBVL(plot_x_name, plot_y_name, title,  save_name='HeatMap.png', HeatMa
         print("bv_loss_list:", bv_loss_list)
         print("feature_1_list:",feature_1_list)
         #start plotting
+        plt.ylim([0,max(bv_loss_list)])
         plt.plot(feature_1_list, bv_loss_list,'o')
     else: #Or this is a 2 dimension HeatMap
         print("plotting 2 dimension HeatMap")

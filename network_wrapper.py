@@ -576,16 +576,17 @@ class Network(object):
             if gradient_descend:                # If currently in gradient descend mode
                 # # Learning rate decay upon plateau
                 self.lr_scheduler.step(train_avg_loss)
-                if loss.detach().cpu().numpy() > 0.1:
+                if loss.detach().cpu().numpy() > 0.01:
                     # If the LR changed (i.e. training stuck) and also loss is large
                     if self.train_stuck_by_lr(self.optm_all, self.flags.lr/4):
                         # Switch to the gradient ascend mode
                         gradient_descend = False
                 else:
-                    print("The loss is lower than 1! good news")
+                    print("The loss is lower than 0.01! good news")
                     # Stop the training
                     train_flag = False
-
+                    self.save()
+                    print("Saving the model...")
             else:                               # Currently in ascent mode, change to gradient descend mode
                 print("After the gradient ascend, switching back to gradient descend")
                 gradient_descend = True         # Change to Gradient descend mode

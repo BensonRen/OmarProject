@@ -1,4 +1,6 @@
 dataIn
+*data*
+nohup*
 models
 figs
 evaluate_model.py
@@ -8,6 +10,7 @@ __pycache__/
 **/*.jpg
 **.jpg
 **.png
+**.out
 */*.sh
 idea
 .idea/*

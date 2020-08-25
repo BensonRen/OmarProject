@@ -22,7 +22,7 @@ if __name__ == '__main__':
     #weight_list = [1, 2, 4, 8, 10, 16, 20, 25, 50] #Full
     #weight_list = [14, 18, 22, 26, 30]  #Subset
     #for ratio in np.arange(0.1, 0.6, 0.1):
-    GA_list = [0.1, 0.08, 0.06, 0.04, 0.02, 0.01]
+    GA_list = [ 0.06, 0.04]#, 0.02, 0.01]
     for gradient_ascend_strength in GA_list:
     #for ratio in np.arange(0.01, 0.1, 0.01):
         #for weight in weight_list:

@@ -181,7 +181,7 @@ class Forward(nn.Module):
             # Final touch, because the input is normalized to [-1,1]
             # S = tanh(out.squeeze())
             out = out.squeeze()
-        return out
+        return out, out, out, out
 
 # class div_NN(nn.Module):
 #     def __init__(self):
