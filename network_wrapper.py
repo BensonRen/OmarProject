@@ -50,7 +50,7 @@ class Network(object):
         self.train_loader = train_loader                        # The train data loader
         self.test_loader = test_loader                          # The test data loader
         self.log = SummaryWriter(self.ckpt_dir)     # Create a summary writer for tensorboard
-        self.best_validation_loss = float('inf')    # Set the BVL to large number
+        self.best_validation_loss = 0.1    # Set the BVL to large number
         self.best_pretrain_loss = float('inf')
         self.running_loss = []
         self.pre_train_model = self.flags.pre_train_model
@@ -565,7 +565,7 @@ class Network(object):
                 # Model improving, save the model
                 if test_avg_loss < self.best_validation_loss:
                     self.best_validation_loss = test_avg_loss
-                    #self.save()
+                    self.save()
                     print("Saving the model...")
 
                     if self.best_validation_loss < self.flags.stop_threshold:
@@ -576,17 +576,17 @@ class Network(object):
             if gradient_descend:                # If currently in gradient descend mode
                 # # Learning rate decay upon plateau
                 self.lr_scheduler.step(train_avg_loss)
-                if loss.detach().cpu().numpy() > 0.01:
+                if loss.detach().cpu().numpy() > 0.1:
                     # If the LR changed (i.e. training stuck) and also loss is large
-                    if self.train_stuck_by_lr(self.optm_all, self.flags.lr/4):
+                    if self.train_stuck_by_lr(self.optm_all, self.flags.lr/8):
                         # Switch to the gradient ascend mode
                         gradient_descend = False
                 else:
                     print("The loss is lower than 0.01! good news")
                     # Stop the training
                     train_flag = False
-                    self.save()
-                    print("Saving the model...")
+                    #self.save()
+                    #print("Saving the model...")
             else:                               # Currently in ascent mode, change to gradient descend mode
                 print("After the gradient ascend, switching back to gradient descend")
                 gradient_descend = True         # Change to Gradient descend mode
