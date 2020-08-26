@@ -53,6 +53,6 @@ TRAIN_LOR_STEP = 50
 # Running specific
 USE_CPU_ONLY = False
 MODEL_NAME = "Gradient_Ascend"
-EVAL_MODEL = None
+EVAL_MODEL =  "trail_1_gradient_ascend_strength_0.005"
 PRE_TRAIN_MODEL = "Gradient_Ascend"
 NUM_PLOT_COMPARE = 5

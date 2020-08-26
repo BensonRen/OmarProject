@@ -97,5 +97,6 @@ if __name__ == '__main__':
 
     print(useless_flags.eval_model)
     # Call the evaluate function from model
+    evaluate_all()
     #evaluate_from_model(useless_flags.eval_model)
-    predict_from_model(useless_flags.eval_model, 'data/X_truth.csv')
+    #predict_from_model(useless_flags.eval_model, 'data/X_truth.csv')

@@ -56,7 +56,7 @@ if __name__ == '__main__':
             ############################
             #flags.lor_ratio = ratio
             #flags.lor_weight = weight
-        for j in range(3):
+        for j in range(2):
                 #flags.model_name ="reg"+ str(flags.reg_scale) + "trail_"+str(j) + "linear_num" + str(layer_num) + "_unit_layer" + str(linear_unit)
             flags.model_name = 'trail_' + str(j) + '_gradient_ascend_strength_' + str(gradient_ascend_strength)
                         

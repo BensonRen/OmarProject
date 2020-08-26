@@ -1,6 +1,7 @@
 dataIn
 *data*
 nohup*
+eval
 models
 figs
 evaluate_model.py

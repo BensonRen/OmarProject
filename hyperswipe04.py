@@ -22,7 +22,7 @@ if __name__ == '__main__':
     #weight_list = [1, 2, 4, 8, 10, 16, 20, 25, 50] #Full
     #weight_list = [14, 18, 22, 26, 30]  #Subset
     #for ratio in np.arange(0.1, 0.6, 0.1):
-    GA_list = [0.01, 0.008, 0.005]
+    GA_list = [0.008, 0.005]
     for gradient_ascend_strength in GA_list:
     #for ratio in np.arange(0.01, 0.1, 0.01):
         #for weight in weight_list:
@@ -56,7 +56,7 @@ if __name__ == '__main__':
             ############################
             #flags.lor_ratio = ratio
             #flags.lor_weight = weight
-        for j in range(3):
+        for j in range(2):
                 #flags.model_name ="reg"+ str(flags.reg_scale) + "trail_"+str(j) + "linear_num" + str(layer_num) + "_unit_layer" + str(linear_unit)
             flags.model_name = 'trail_' + str(j) + '_gradient_ascend_strength_' + str(gradient_ascend_strength)
                         

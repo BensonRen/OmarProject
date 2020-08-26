@@ -576,7 +576,7 @@ class Network(object):
             if gradient_descend:                # If currently in gradient descend mode
                 # # Learning rate decay upon plateau
                 self.lr_scheduler.step(train_avg_loss)
-                if loss.detach().cpu().numpy() > 0.1:
+                if loss.detach().cpu().numpy() > 0.01:
                     # If the LR changed (i.e. training stuck) and also loss is large
                     if self.train_stuck_by_lr(self.optm_all, self.flags.lr/8):
                         # Switch to the gradient ascend mode
@@ -740,10 +740,10 @@ class Network(object):
                     if cuda:
                         geometry = geometry.cuda()
                         spectra = spectra.cuda()
-                    logits = self.model(geometry)
+                    logit,w0,wp,g = self.model(geometry)  # Get the output
                     np.savetxt(fxt, geometry.cpu().data.numpy(), fmt='%.3f')
-                    np.savetxt(fyt, spectra.cpu().data.numpy(), fmt='%.3f')
-                    np.savetxt(fyp, logits.cpu().data.numpy(), fmt='%.3f')
+                    np.savetxt(fyt, spectra.cpu().data.numpy()[:, 12:], fmt='%.3f')
+                    np.savetxt(fyp, logit.cpu().data.numpy(), fmt='%.3f')
         return Ypred_file, Ytruth_file
 
 
