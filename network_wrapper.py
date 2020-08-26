@@ -472,10 +472,12 @@ class Network(object):
                                              w0=w0, g=g, wp=wp)
                 # print(loss)
                 loss.backward()
+                self.optm_all.step()  # Move one step the optimizer
+                """
                 if self.flags.use_clip:
                     torch.nn.utils.clip_grad_value_(self.model.parameters(), self.flags.grad_clip)
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.flags.grad_clip)
-
+    
                 if epoch % self.flags.record_step == 0:
                     if j == 0:
                         for k in range(self.flags.num_plot_compare):
@@ -485,8 +487,8 @@ class Network(object):
                             self.log.add_figure(tag='Test ' + str(k) +') Sample e2 Spectrum'.format(1),
                                                 figure=f, global_step=epoch)
 
+                """
 
-                self.optm_all.step()                                        # Move one step the optimizer
                 """
                 ####################################
                 # Extra training loop for w0 alone #
@@ -609,7 +611,7 @@ class Network(object):
 
         self.log.close()
         # np.savetxt(time.strftime('%Y%m%d_%H%M%S', time.localtime())+'.csv', self.running_loss, delimiter=",")
-        self.save()
+        #self.save()
 
     def pretrain(self):
         """
