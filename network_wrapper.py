@@ -550,12 +550,13 @@ class Network(object):
                                                      #epoch=epoch, peak_loss=True)
                         test_loss.append(np.copy(loss.cpu().data.numpy()))           # Aggregate the loss
 
+                        """
                         if j == 0 and epoch % self.flags.record_step == 0:
                             # f2 = plotMSELossDistrib(test_loss)
                             f2 = plotMSELossDistrib(logit.cpu().data.numpy(), spectra[:, 12:].cpu().data.numpy())
                             self.log.add_figure(tag='0_Testing Loss Histogram'.format(1), figure=f2,
                                                 global_step=epoch)
-
+                        """
                 # Record the testing loss to the tensorboard
 
                 test_avg_loss = np.mean(test_loss)
